@@ -15,7 +15,10 @@ class EmpleadoController extends Controller
     public function index()
     {
         $empleados = Empleado::with('departamento', 'cargo')->get();
-        return view('empleados.index', compact('empleados'));
+        $departamentos = Departamento::where('activo', true)->get();
+        $cargos = Cargo::where('activo', true)->get();
+        
+        return view('empleados.index', compact('empleados', 'departamentos', 'cargos'));
     }
 
     /**
@@ -33,27 +36,46 @@ class EmpleadoController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'codigo_empleado' => 'required|string|max:50|unique:empleados',
-            'nombre' => 'required|string|max:255',
-            'apellidos' => 'required|string|max:255',
-            'email' => 'required|email|unique:empleados',
-            'telefono' => 'nullable|string|max:20',
-            'cedula' => 'required|string|max:20|unique:empleados',
-            'fecha_nacimiento' => 'required|date',
-            'genero' => 'required|in:M,F,Otro',
-            'direccion' => 'nullable|string',
-            'fecha_ingreso' => 'required|date',
-            'departamento_id' => 'required|exists:departamentos,id',
-            'cargo_id' => 'required|exists:cargos,id',
-            'salario' => 'required|numeric|min:0',
-            'estado' => 'required|in:Activo,Inactivo,Vacaciones,Licencia',
-        ]);
+        // Debug temporal
+        \Log::info('Datos recibidos:', $request->all());
+        
+        try {
+            $request->validate([
+                'codigo_empleado' => 'required|string|max:50|unique:empleados',
+                'nombre' => 'required|string|max:255',
+                'apellidos' => 'required|string|max:255',
+                'email' => 'required|email|unique:empleados',
+                'telefono' => 'nullable|string|max:20',
+                'cedula' => 'required|string|max:20|unique:empleados',
+                'fecha_nacimiento' => 'required|date',
+                'genero' => 'required|in:M,F,Otro',
+                'direccion' => 'nullable|string',
+                'fecha_ingreso' => 'required|date',
+                'departamento_id' => 'required|exists:departamentos,id',
+                'cargo_id' => 'required|exists:cargos,id',
+                'salario' => 'required|numeric|min:0',
+                'estado' => 'required|in:Activo,Inactivo,Vacaciones,Licencia',
+            ]);
 
-        Empleado::create($request->all());
+            $empleado = Empleado::create($request->all());
+            
+            \Log::info('Empleado creado:', $empleado->toArray());
 
-        return redirect()->route('empleados.index')
-            ->with('success', 'Empleado creado exitosamente.');
+            return redirect()->route('empleados.index')
+                ->with('success', 'Empleado creado exitosamente.');
+                
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error('Error de validación:', $e->errors());
+            return redirect()->back()
+                ->withInput()
+                ->withErrors($e->errors());
+                
+        } catch (\Exception $e) {
+            \Log::error('Error general:', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Error al crear el empleado: ' . $e->getMessage());
+        }
     }
 
     /**

@@ -6,52 +6,111 @@
 <div class="container mx-auto px-4 py-8">
     <div class="flex justify-between items-center mb-6">
         <h1 class="text-3xl font-bold text-gray-800">Lista de Empleados</h1>
-        <a href="{{ route('empleados.create') }}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+        <button onclick="openCreateModal()" class="bg-cyan-900 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
             <i class="fas fa-plus mr-2"></i>Nuevo Empleado
-        </a>
+        </button>
     </div>
     
-    <!-- Filtros -->
-    <div class="bg-white p-4 rounded-lg shadow mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <input type="text" placeholder="Buscar por nombre..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-                <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Todos los departamentos</option>
-                    <!-- Aquí se cargarán los departamentos -->
-                </select>
-            </div>
-            <div>
-                <select class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Todos los estados</option>
-                    <option value="Activo">Activo</option>
-                    <option value="Inactivo">Inactivo</option>
-                    <option value="Vacaciones">Vacaciones</option>
-                    <option value="Licencia">Licencia</option>
-                </select>
-            </div>
-            <div>
-                <button class="w-full bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700">
-                    <i class="fas fa-search mr-2"></i>Buscar
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Lista de empleados -->
-    <div class="bg-white rounded-lg shadow">
-        <div class="p-6">
-            <div class="text-center py-12">
-                <i class="fas fa-users text-6xl text-gray-300 mb-4"></i>
-                <h3 class="text-xl font-semibold text-gray-600 mb-2">No hay empleados registrados</h3>
-                <p class="text-gray-500 mb-4">Comienza agregando el primer empleado al sistema</p>
-                <a href="{{ route('empleados.create') }}" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700">
-                    <i class="fas fa-plus mr-2"></i>Crear Primer Empleado
-                </a>
-            </div>
-        </div>
+    <!-- AG Grid Container -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div id="empleadosGrid" class="ag-theme-alpine" style="height: 600px; width: 100%;"></div>
     </div>
 </div>
+
+<!-- Modal de creación de empleado -->
+@include('empleados.create')
 @endsection
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const empleadosData = @json($empleados);
+    
+    const columnDefs = [
+        { field: 'codigo_empleado', headerName: 'Código', width: 120 },
+        { 
+            headerName: 'Nombre Completo', 
+            width: 220,
+            valueGetter: params => `${params.data.nombre || ''} ${params.data.apellidos || ''}`.trim()
+        },
+        { field: 'email', headerName: 'Email', width: 200 },
+        { 
+            field: 'departamento.nombre', 
+            headerName: 'Departamento', 
+            width: 150,
+            valueGetter: params => params.data.departamento?.nombre || 'Sin departamento'
+        },
+        { 
+            field: 'cargo.nombre', 
+            headerName: 'Cargo', 
+            width: 150,
+            valueGetter: params => params.data.cargo?.nombre || 'Sin cargo'
+        },
+        { 
+            field: 'estado', 
+            headerName: 'Estado', 
+            width: 120,
+            cellRenderer: function(params) {
+                const estado = params.value;
+                const colors = {
+                    'Activo': 'bg-green-100 text-green-800',
+                    'Inactivo': 'bg-red-100 text-red-800',
+                    'Vacaciones': 'bg-blue-100 text-blue-800',
+                    'Licencia': 'bg-yellow-100 text-yellow-800'
+                };
+                return `<span class="px-2 py-1 rounded-full text-xs ${colors[estado] || 'bg-gray-100 text-gray-800'}">${estado}</span>`;
+            }
+        },
+        {
+            headerName: 'Acciones',
+            width: 150,
+            cellRenderer: function(params) {
+                return `
+                    <div class="flex space-x-2">
+                        <a href="/empleados/${params.data.id}" class="text-blue-600 hover:text-blue-900">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <a href="/empleados/${params.data.id}/edit" class="text-yellow-600 hover:text-yellow-900">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <button onclick="deleteEmpleado(${params.data.id})" class="text-red-600 hover:text-red-900">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                `;
+            }
+        }
+    ];
+
+    const gridOptions = {
+        columnDefs: columnDefs,
+        rowData: empleadosData,
+        pagination: true,
+        paginationPageSize: 20,
+        defaultColDef: {
+            sortable: true,
+            filter: true,
+            resizable: true
+        }
+    };
+
+    const gridDiv = document.querySelector('#empleadosGrid');
+    agGrid.createGrid(gridDiv, gridOptions);
+});
+
+function deleteEmpleado(id) {
+    if (confirm('¿Estás seguro de eliminar este empleado?')) {
+        // Crear formulario para DELETE
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = `/empleados/${id}`;
+        form.innerHTML = `
+            @csrf
+            @method('DELETE')
+        `;
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+</script>
+@endpush
